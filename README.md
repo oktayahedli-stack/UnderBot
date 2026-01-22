@@ -1,45 +1,78 @@
-// Node.js Netlify Function. QOY: process.env.AVIATIONSTACK_KEY
-const fetch = require("node-fetch");
+<!DOCTYPE html>
+<html lang="az">
+<head>
+  <meta charset="UTF-8" />
+  <title>Bakı H.Əliyev Aeroportu Uçuşları</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; background: #f0f0f0; }
+    h1 { color: #0066cc; }
+    table { border-collapse: collapse; width: 100%; background: white; }
+    th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
+    th { background: #0066cc; color: white; }
+  </style>
+</head>
+<body>
+  <h1>Bakı Heydər Əliyev Aeroportu Uçuşları</h1>
+  <table id="flights-table">
+    <thead>
+      <tr>
+        <th>Uçuş Nömrəsi</th>
+        <th>Şirkət</th>
+        <th>Gediş</th>
+        <th>Gəliş</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
 
-exports.handler = async function(event) {
-  const API_KEY = process.env.AVIATIONSTACK_KEY;
-  if(!API_KEY) {
-    return { statusCode: 500, body: JSON.stringify({ error: "Serverdə API açarı konfiqurasiya edilməyib." }) };
-  }
+  <script>
+    const API_KEY = 'SENIN_API_ACARIN'; // Buraya aviationstack API açarını yaz
+    const airportCode = 'GYD'; // Bakı Heydər Əliyev aeroportu ICAO/IATA kodu
 
-  const params = event.queryStringParameters || {};
-  const type = params.type || "all";
-  const airport = params.airport || "GYD";
+    async function fetchFlights() {
+      try {
+        // Uçuşların gələnlər (arrivals) və gedənlər (departures) sorğusu
+        // aviationstack API-da endpointlər fərqlidir, biz burda gəlişləri nümunə göstəririk
+        const url = `http://api.aviationstack.com/v1/flights?access_key=${API_KEY}&arr_icao=${airportCode}&limit=10`;
 
-  let apiUrl = `http://api.aviationstack.com/v1/flights?access_key=${API_KEY}`;
-  if(type === "arrivals") apiUrl += `&arr_iata=${airport}`;
-  else if(type === "departures") apiUrl += `&dep_iata=${airport}`;
-  else apiUrl += `&arr_iata=${airport}&dep_iata=${airport}`;
+        const response = await fetch(url);
+        const data = await response.json();
 
-  try {
-    const r = await fetch(apiUrl);
-    if(!r.ok) {
-      const text = await r.text();
-      return { statusCode: 502, body: JSON.stringify({ error: "API error", detail: text }) };
+        const tbody = document.querySelector('#flights-table tbody');
+        tbody.innerHTML = '';
+
+        if (!data.data || data.data.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="5">Uçuş məlumatı tapılmadı.</td></tr>';
+          return;
+        }
+
+        data.data.forEach(flight => {
+          const row = document.createElement('tr');
+
+          const flightNumber = flight.flight.iata || '—';
+          const airline = flight.airline.name || '—';
+          const departure = flight.departure ? flight.departure.airport : '—';
+          const arrival = flight.arrival ? flight.arrival.airport : '—';
+          const status = flight.flight_status || '—';
+
+          row.innerHTML = `
+            <td>${flightNumber}</td>
+            <td>${airline}</td>
+            <td>${departure}</td>
+            <td>${arrival}</td>
+            <td>${status}</td>
+          `;
+
+          tbody.appendChild(row);
+        });
+
+      } catch (error) {
+        console.error('Xəta baş verdi:', error);
+      }
     }
-    const data = await r.json();
-    const flights = (data.data || []).map(f => ({
-      flight: f.flight ? (f.flight.iata || f.flight.number || "") : "",
-      airline: f.airline ? f.airline.name : "",
-      origin: f.departure ? (f.departure.iata || f.departure.airport) : "",
-      destination: f.arrival ? (f.arrival.iata || f.arrival.airport) : "",
-      scheduled: f.departure ? (f.departure.scheduled || null) : null,
-      estimated: f.arrival ? (f.arrival.estimated || null) : null,
-      status: f.flight_status || "",
-      terminal: (f.departure && f.departure.terminal) || (f.arrival && f.arrival.terminal) || "",
-      gate: (f.departure && f.departure.gate) || (f.arrival && f.arrival.gate) || ""
-    }));
 
-    return {
-      statusCode: 200,
-      body: JSON.stringify({ flights })
-    };
-  } catch (err) {
-    return { statusCode: 500, body: JSON.stringify({ error: err.message }) };
-  }
-};
+    fetchFlights();
+  </script>
+</body>
+</html>
